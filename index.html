@@ -100,6 +100,32 @@
   #addInput { flex: 1; font-size: 17px; }
   #doneWrap { margin-top: 28px; }
 
+  /* Projects */
+  #newProject { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  #newProject::before { content: "+"; width: 22px; text-align: center; color: var(--faint); font-size: 20px; }
+  #newProjectName { flex: 1; font-size: 17px; }
+  #projectItems { list-style: none; margin: 0; padding: 0; }
+  #projectItems li { padding: 14px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  #projectItems .n { font-size: 17px; }
+  #projectItems .m { font-size: 13px; color: var(--muted); }
+  .pname { width: 100%; font-size: 24px; font-weight: 600; letter-spacing: -.01em; padding: 4px 0 12px; }
+  .newnote { display: flex; gap: 8px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .newnote .btn { margin: 0; }
+  .btn.danger { color: var(--warn); margin-left: auto; }
+  .note { padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .note-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 8px; }
+  .note-head .more { margin-left: auto; }
+  .note-head .del { display: none; font-size: 13px; color: var(--warn); }
+  .note.showacts .note-head .del { display: inline; }
+  .mfield { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; }
+  .mfield span { font-size: 13px; color: var(--muted); width: 64px; flex: none; }
+  .mfield input { flex: 1; min-width: 0; font-size: 16px; }
+  .mfield input[type=datetime-local] { color-scheme: dark; }
+  .note textarea { width: 100%; resize: none; overflow: hidden; min-height: 52px; padding: 0; font: 17px/1.6 var(--serif); }
+  .note .tldr { font-weight: 600; min-height: 28px; }
+  .note .sub { font-size: 13px; color: var(--muted); margin-top: 10px; display: block; }
+
   /* Settings */
   .set { padding: 16px 0; border-bottom: 1px solid var(--line); }
   .set input { width: 100%; background: var(--surface); border-radius: 8px; padding: 10px 12px; font-size: 16px; margin-bottom: 10px; }
@@ -114,7 +140,7 @@
     background: rgba(14,14,15,.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     border-top: 1px solid var(--line);
   }
-  nav button { flex: 1; max-width: 160px; padding: 8px; font-size: 14px; color: var(--faint); border-radius: 10px; }
+  nav button { flex: 1; max-width: 140px; padding: 8px; font-size: 14px; color: var(--faint); border-radius: 10px; }
   nav button.on { color: var(--text); }
 </style>
 </head>
@@ -153,6 +179,23 @@
     <div id="doneWrap"><span class="label">Done · <span id="doneCount"></span></span><ul class="tasklist" id="doneList"></ul></div>
   </section>
 
+  <section id="projects" hidden>
+    <div id="projectList">
+      <form id="newProject"><input id="newProjectName" placeholder="New project" autocomplete="off" enterkeyhint="done"></form>
+      <ul id="projectItems"></ul>
+    </div>
+    <div id="projectView" hidden>
+      <button id="backProjects" class="morelink">‹ All projects</button>
+      <input id="projectName" class="pname" autocomplete="off">
+      <div class="newnote">
+        <button class="btn" id="addNote">+ Note</button>
+        <button class="btn" id="addMeeting">+ Meeting notes</button>
+        <button class="btn danger" id="deleteProject">Delete project</button>
+      </div>
+      <div id="noteItems"></div>
+    </div>
+  </section>
+
   <section id="settings" hidden>
     <div class="set">
       <span class="label">Google Sheet sync</span>
@@ -173,6 +216,7 @@
 <nav>
   <button data-tab="journal">Journal</button>
   <button data-tab="tasks">Tasks</button>
+  <button data-tab="projects">Projects</button>
   <button data-tab="settings">Settings</button>
 </nav>
 
@@ -190,9 +234,11 @@ const today = () => ymd(new Date());
 const fmt = (s, o) => parse(s).toLocaleDateString(undefined, o);
 
 // ---------- storage ----------
-const blank = () => ({ Journal: {}, Tasks: {}, dirty: { Journal: {}, Tasks: {} }, since: 0 });
+const TABLES = ['Journal', 'Tasks', 'Projects', 'Notes'];
+const blank = () => ({ ...Object.fromEntries(TABLES.map(T => [T, {}])), dirty: Object.fromEntries(TABLES.map(T => [T, {}])), since: 0 });
 let data, cfg;
 try { data = Object.assign(blank(), JSON.parse(localStorage.getItem('j.data'))); } catch { data = blank(); }
+for (const T of TABLES) { data[T] ||= {}; data.dirty[T] ||= {}; } // tables added after first install
 try { cfg = JSON.parse(localStorage.getItem('j.cfg')) || {}; } catch { cfg = {}; }
 
 let saveTimer;
@@ -216,11 +262,11 @@ let sel = today(), lastToday = today();
 let calMonth = sel.slice(0, 7);
 
 function render() {
-  for (const t of ['journal', 'tasks', 'settings']) $(t).hidden = t !== tab;
+  for (const t of ['journal', 'tasks', 'projects', 'settings']) $(t).hidden = t !== tab;
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  const t = today(), isSettings = tab === 'settings';
+  const t = today(), isSettings = tab === 'settings' || tab === 'projects';
   $('prev').style.visibility = $('next').style.visibility = isSettings ? 'hidden' : '';
-  $('dateTitle').textContent = isSettings ? 'Settings' : fmt(sel, { weekday: 'long', month: 'long', day: 'numeric' });
+  $('dateTitle').textContent = tab === 'settings' ? 'Settings' : tab === 'projects' ? 'Projects' : fmt(sel, { weekday: 'long', month: 'long', day: 'numeric' });
   const diff = daysBetween(t, sel);
   $('dateRel').textContent = isSettings ? '' : diff === 0 ? 'Today' : diff === -1 ? 'Yesterday' : diff === 1 ? 'Tomorrow' : fmt(sel, { year: 'numeric' });
   $('todayBtn').hidden = isSettings || diff === 0;
@@ -229,6 +275,7 @@ function render() {
   if (tab === 'journal') renderJournal();
   if (tab === 'tasks') renderTasks();
   if (tab === 'settings') renderSettings();
+  if (tab === 'projects') renderProjects();
   updateDot();
 }
 
@@ -431,16 +478,139 @@ const shiftMonth = n => { const [y, m] = calMonth.split('-').map(Number); calMon
 $('calPrev').onclick = () => shiftMonth(-1);
 $('calNext').onclick = () => shiftMonth(1);
 
+// ---------- projects ----------
+let openProject = null;
+const liveIn = T => Object.values(data[T]).filter(x => !x.deleted);
+const notesOf = pid => liveIn('Notes').filter(n => n.projectId === pid).sort((a, b) => b.createdAt - a.createdAt);
+const stamp = ms => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const localDT = (d = new Date()) => `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const NOTE_TEXT = ['attendees', 'tldr', 'body'];
+
+function renderProjects() {
+  if (openProject && !data.Projects[openProject] || data.Projects[openProject]?.deleted) openProject = null;
+  $('projectList').hidden = !!openProject;
+  $('projectView').hidden = !openProject;
+  if (openProject) return renderProjectView();
+  const list = liveIn('Projects').map(p => {
+    const notes = notesOf(p.id);
+    return { p, count: notes.length, last: Math.max(p.updatedAt, ...notes.map(n => n.updatedAt)) };
+  }).sort((a, b) => b.last - a.last);
+  const ul = $('projectItems');
+  if (!list.length) { ul.innerHTML = '<li class="empty" style="cursor:default">No projects yet. Name one above.</li>'; return; }
+  ul.replaceChildren(...list.map(({ p, count, last }) => {
+    const li = document.createElement('li');
+    const n = document.createElement('div'); n.className = 'n'; n.textContent = p.name;
+    const m = document.createElement('div'); m.className = 'm';
+    m.textContent = `${count} note${count === 1 ? '' : 's'} · updated ${new Date(last).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    li.append(n, m);
+    li.onclick = () => { openProject = p.id; renderProjects(); window.scrollTo(0, 0); };
+    return li;
+  }));
+}
+
+function renderProjectView() {
+  const p = data.Projects[openProject];
+  if (document.activeElement !== $('projectName')) $('projectName').value = p.name;
+  const box = $('noteItems');
+  if (box.contains(document.activeElement)) return; // don't rebuild under the cursor
+  const notes = notesOf(p.id);
+  if (!notes.length) { box.innerHTML = '<div class="empty">No notes yet.</div>'; return; }
+  box.replaceChildren(...notes.map(noteCard));
+}
+
+function noteCard(n) {
+  const card = document.createElement('div'); card.className = 'note';
+  const set = (k, v) => touch('Notes', { ...data.Notes[n.id], [k]: v });
+  const head = document.createElement('div'); head.className = 'note-head';
+  const when = document.createElement('span'); when.textContent = stamp(n.createdAt);
+  head.append(when);
+  if (n.type === 'meeting') { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'Meeting'; head.append(t); }
+  const more = document.createElement('button'); more.className = 'more'; more.textContent = '···'; more.setAttribute('aria-label', 'More');
+  more.onclick = () => card.classList.toggle('showacts');
+  const del = document.createElement('button'); del.className = 'del'; del.textContent = 'Delete';
+  del.onclick = () => { touch('Notes', { ...data.Notes[n.id], deleted: true }); renderProjectView(); };
+  head.append(more, del);
+  card.append(head);
+
+  const area = (k, ph, cls) => {
+    const ta = document.createElement('textarea'); ta.value = n[k] || ''; ta.placeholder = ph;
+    if (cls) ta.className = cls;
+    ta.addEventListener('input', () => { set(k, ta.value); grow(ta); });
+    requestAnimationFrame(() => grow(ta));
+    return ta;
+  };
+  if (n.type === 'meeting') {
+    const row = (label, input) => { const r = document.createElement('label'); r.className = 'mfield'; const s = document.createElement('span'); s.textContent = label; r.append(s, input); return r; };
+    const who = document.createElement('input'); who.value = n.attendees || ''; who.placeholder = 'Who was there?'; who.autocomplete = 'off';
+    who.addEventListener('input', () => set('attendees', who.value));
+    const dt = document.createElement('input'); dt.type = 'datetime-local'; dt.value = n.when || '';
+    dt.addEventListener('change', () => set('when', dt.value));
+    card.append(row('Who', who), row('When', dt), row('TL;DR', area('tldr', 'The short version…', 'tldr')));
+    const sub = document.createElement('span'); sub.className = 'sub'; sub.textContent = 'Notes';
+    card.append(sub, area('body', 'Details, decisions, next steps…'));
+  } else {
+    card.append(area('body', 'Write your note…'));
+  }
+  return card;
+}
+
+function addNote(type) {
+  const now = Date.now();
+  const n = { id: newId(), projectId: openProject, type, createdAt: now, attendees: '', when: type === 'meeting' ? localDT() : '', tldr: '', body: '', deleted: false };
+  touch('Notes', n);
+  touch('Projects', { ...data.Projects[openProject] }); // bump project to the top of the list
+  $('noteItems').replaceChildren(); // force rebuild
+  renderProjectView();
+  const first = $('noteItems').querySelector(type === 'meeting' ? 'input' : 'textarea');
+  if (first) first.focus();
+}
+
+// Notes left completely blank get dropped when you leave the project.
+function dropEmptyNotes() {
+  if (!openProject) return;
+  for (const n of notesOf(openProject)) if (NOTE_TEXT.every(k => !(n[k] || '').trim())) touch('Notes', { ...n, deleted: true });
+}
+
+$('newProject').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('newProjectName').value.trim();
+  if (!name) return;
+  const now = Date.now(), p = { id: newId(), name, createdAt: now, deleted: false };
+  touch('Projects', p);
+  $('newProjectName').value = '';
+  $('newProjectName').blur();
+  openProject = p.id;
+  renderProjects();
+});
+$('projectName').addEventListener('change', () => {
+  const v = $('projectName').value.trim();
+  if (v) touch('Projects', { ...data.Projects[openProject], name: v });
+  else $('projectName').value = data.Projects[openProject].name;
+});
+$('projectName').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+$('backProjects').onclick = () => { dropEmptyNotes(); openProject = null; renderProjects(); };
+$('addNote').onclick = () => addNote('note');
+$('addMeeting').onclick = () => addNote('meeting');
+$('deleteProject').onclick = () => {
+  const p = data.Projects[openProject];
+  if (!confirm(`Delete "${p.name}" and all its notes?`)) return;
+  for (const n of notesOf(p.id)) touch('Notes', { ...n, deleted: true });
+  touch('Projects', { ...p, deleted: true });
+  openProject = null;
+  renderProjects();
+};
+
 // ---------- sync with Google Sheet ----------
 let syncing = false, syncTimer, syncError = '', lastSynced = Number(localStorage.getItem('j.lastSynced')) || 0;
-const pending = () => Object.keys(data.dirty.Journal).length + Object.keys(data.dirty.Tasks).length;
+const pending = () => TABLES.reduce((n, T) => n + Object.keys(data.dirty[T]).length, 0);
 const configured = () => cfg.url && cfg.key;
 
 function scheduleSync() { clearTimeout(syncTimer); syncTimer = setTimeout(sync, 1500); }
 
 function normalize(table, r) {
   const rec = { ...r, updatedAt: Number(r.updatedAt) || 0, deleted: r.deleted === true || r.deleted === 'true' };
-  if (table === 'Tasks') rec.createdAt = Number(r.createdAt) || 0;
+  if ('createdAt' in r) rec.createdAt = Number(r.createdAt) || 0;
   delete rec.syncedAt;
   return rec;
 }
@@ -450,12 +620,12 @@ async function sync() {
   if (!navigator.onLine) { syncError = 'Offline. Changes are saved here and will sync later.'; return updateDot(); }
   syncing = true; updateDot();
   const changes = {};
-  for (const T of ['Journal', 'Tasks']) changes[T] = Object.keys(data.dirty[T]).map(id => ({ ...data[T][id] }));
+  for (const T of TABLES) changes[T] = Object.keys(data.dirty[T]).map(id => ({ ...data[T][id] }));
   try {
     const res = await fetch(cfg.url, { method: 'POST', body: JSON.stringify({ key: cfg.key, since: data.since, changes }) });
     const out = await res.json();
     if (out.error) throw new Error(out.error === 'bad key' ? 'Secret key doesn\'t match.' : out.error);
-    for (const T of ['Journal', 'Tasks']) {
+    for (const T of TABLES) {
       for (const sent of changes[T]) if (data[T][sent.id]?.updatedAt === sent.updatedAt) delete data.dirty[T][sent.id];
       for (const r of out[T] || []) {
         const rec = normalize(T, r), local = data[T][rec.id];
@@ -470,7 +640,8 @@ async function sync() {
     syncError = '';
     lastSynced = Date.now();
     localStorage.setItem('j.lastSynced', lastSynced);
-    if (!document.activeElement || !document.activeElement.matches('.ttl, #addInput')) render();
+    const a = document.activeElement;
+    if (!a || !(a.matches('.ttl, #addInput') || $('projects').contains(a))) render();
   } catch (err) {
     syncError = 'Sync failed: ' + (err.message || err);
   } finally {
@@ -505,7 +676,7 @@ $('cfgSave').onclick = () => {
   if (url !== cfg.url) {
     // New sheet: pull everything and push everything we have locally.
     data.since = 0;
-    for (const T of ['Journal', 'Tasks']) for (const id in data[T]) data.dirty[T][id] = 1;
+    for (const T of TABLES) for (const id in data[T]) data.dirty[T][id] = 1;
     save(true);
   }
   cfg = { url, key };
@@ -525,6 +696,7 @@ $('exportBtn').onclick = () => {
 
 // ---------- wiring ----------
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  if (tab === 'projects' && b.dataset.tab !== 'projects') dropEmptyNotes();
   tab = b.dataset.tab;
   localStorage.setItem('j.tab', tab);
   render();
