@@ -1,5 +1,5 @@
 // Serves the app from cache so it opens instantly and offline; refreshes the cache in the background.
-const CACHE = 'journal-v2';
+const CACHE = 'journal-v3';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

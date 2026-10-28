@@ -98,7 +98,6 @@
   #addForm { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
   #addForm::before { content: "+"; width: 22px; text-align: center; color: var(--faint); font-size: 20px; }
   #addInput { flex: 1; font-size: 17px; }
-  .pastnote { color: var(--faint); font-size: 13px; padding: 12px 0; }
   #doneWrap { margin-top: 28px; }
 
   /* Settings */
@@ -151,7 +150,6 @@
   <section id="tasks" hidden>
     <ul class="tasklist" id="openList"></ul>
     <form id="addForm"><input id="addInput" placeholder="Add a task" autocomplete="off" enterkeyhint="done"></form>
-    <div class="pastnote" id="pastNote" hidden>This day has passed. Unfinished tasks carried over to today.</div>
     <div id="doneWrap"><span class="label">Done · <span id="doneCount"></span></span><ul class="tasklist" id="doneList"></ul></div>
   </section>
 
@@ -342,14 +340,12 @@ function tasksFor(D) {
 const isDone = (x, D) => !!x.doneDate && (x.doneDate <= D || x.date > today());
 
 function renderTasks() {
-  const t = today(), list = tasksFor(sel).sort((a, b) => a.createdAt - b.createdAt);
+  const list = tasksFor(sel).sort((a, b) => a.createdAt - b.createdAt);
   const open = list.filter(x => !isDone(x, sel)), done = list.filter(x => isDone(x, sel));
   $('openList').replaceChildren(...open.map(x => taskRow(x, false)));
   $('doneList').replaceChildren(...done.map(x => taskRow(x, true)));
   $('doneCount').textContent = done.length;
   $('doneWrap').hidden = !done.length;
-  $('addForm').hidden = sel < t;
-  $('pastNote').hidden = !(sel < t);
 }
 
 function taskRow(x, done) {
