@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0e0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Journal">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Journal</title>
+<style>
+  :root {
+    --bg: #0e0e0f; --surface: #17171a; --line: #232327;
+    --text: #e8e6e3; --muted: #8b8a90; --faint: #4d4d53;
+    --accent: #c9a96e; --warn: #c2766b;
+    --serif: ui-serif, "New York", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 var(--sans); }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  input, textarea { font: inherit; color: var(--text); background: none; border: 0; outline: none; }
+  [hidden] { display: none !important; }
+
+  header {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: calc(env(safe-area-inset-top) + 12px) 16px 12px;
+    background: rgba(14,14,15,.88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  header .arrow { width: 40px; height: 40px; font-size: 24px; color: var(--muted); border-radius: 50%; }
+  header .arrow:active { background: var(--surface); }
+  .title { text-align: center; }
+  #dateTitle { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+  #dateSub { font-size: 12px; color: var(--muted); display: flex; gap: 8px; justify-content: center; align-items: center; min-height: 18px; }
+  #todayBtn { color: var(--accent); font-size: 12px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); display: inline-block; }
+  .dot.ok { background: #6f9a72; } .dot.pending { background: var(--accent); } .dot.err { background: var(--warn); }
+
+  main { max-width: 640px; margin: 0 auto; padding: 8px 20px calc(env(safe-area-inset-bottom) + 96px); }
+  .label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+
+  /* Journal */
+  .field { padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .field textarea {
+    width: 100%; resize: none; overflow: hidden; min-height: 52px; padding: 0;
+    font: 18px/1.6 var(--serif);
+  }
+  textarea::placeholder, input::placeholder { color: var(--faint); }
+  .moods { display: flex; gap: 8px; flex-wrap: wrap; }
+  .moods button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px; color: var(--muted); }
+  .moods button.on { border-color: var(--accent); color: var(--accent); }
+  .field .q { font-size: 15px; color: var(--muted); margin-bottom: 6px; display: block; }
+  .morelink { color: var(--accent); font-size: 14px; padding: 16px 0; }
+  .earlier { margin-top: 36px; }
+  .earlier-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  #search { background: var(--surface); border-radius: 8px; padding: 6px 10px; font-size: 16px; width: 50%; }
+  #entries { list-style: none; margin: 8px 0 0; padding: 0; }
+  #entries li { padding: 14px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  #entries .d { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+  #entries .p { font: 16px/1.5 var(--serif); color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .empty { color: var(--faint); font-size: 14px; padding: 14px 0; }
+
+  /* Calendar */
+  .cal { padding: 4px 0 12px; border-bottom: 1px solid var(--line); }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal-head span { font-size: 14px; font-weight: 600; }
+  .cal-head button { width: 32px; height: 32px; color: var(--muted); font-size: 20px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; text-align: center; }
+  .cal-grid .wd { font-size: 11px; color: var(--faint); padding-bottom: 4px; }
+  .cal-grid button { height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 14px; border-radius: 10px; color: var(--text); }
+  .cal-grid button.past { color: var(--muted); }
+  .cal-grid button.today { color: var(--accent); font-weight: 600; }
+  .cal-grid button.sel { background: var(--surface); }
+  .cal-grid i { width: 4px; height: 4px; border-radius: 50%; background: transparent; }
+  .cal-grid i.open { background: var(--accent); } .cal-grid i.done { background: var(--faint); }
+
+  /* Tasks */
+  .tasklist { list-style: none; margin: 0; padding: 0; }
+  .task { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .check { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1.5px solid var(--faint); position: relative; }
+  .task.done .check { background: var(--accent); border-color: var(--accent); }
+  .task.done .check::after { content: ""; position: absolute; left: 6.5px; top: 3px; width: 5px; height: 10px; border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .ttl { flex: 1; min-width: 0; font-size: 17px; padding: 0; }
+  .task.done .ttl { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+  .carry { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .carry.c3 { color: var(--accent); } .carry.c7 { color: var(--warn); }
+  .more { width: 28px; color: var(--faint); font-size: 18px; letter-spacing: 1px; }
+  .acts { display: none; width: 100%; padding-left: 34px; gap: 8px; }
+  .task.showacts .acts { display: flex; }
+  .acts button { font-size: 13px; padding: 5px 12px; border-radius: 999px; background: var(--surface); color: var(--muted); }
+  .acts button.del { color: var(--warn); }
+  #addForm { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  #addForm::before { content: "+"; width: 22px; text-align: center; color: var(--faint); font-size: 20px; }
+  #addInput { flex: 1; font-size: 17px; }
+  .pastnote { color: var(--faint); font-size: 13px; padding: 12px 0; }
+  #doneWrap { margin-top: 28px; }
+
+  /* Settings */
+  .set { padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .set input { width: 100%; background: var(--surface); border-radius: 8px; padding: 10px 12px; font-size: 16px; margin-bottom: 10px; }
+  .btn { padding: 9px 16px; border-radius: 8px; background: var(--surface); font-size: 15px; margin-right: 8px; }
+  .btn.primary { background: var(--accent); color: var(--bg); font-weight: 600; }
+  .help { color: var(--muted); font-size: 14px; }
+
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: flex; justify-content: center; gap: 8px;
+    padding: 8px 16px calc(env(safe-area-inset-bottom) + 8px);
+    background: rgba(14,14,15,.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--line);
+  }
+  nav button { flex: 1; max-width: 160px; padding: 8px; font-size: 14px; color: var(--faint); border-radius: 10px; }
+  nav button.on { color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <button class="arrow" id="prev" aria-label="Previous day">‹</button>
+  <div class="title">
+    <div id="dateTitle"></div>
+    <div id="dateSub"><span id="dateRel"></span><button id="todayBtn" hidden>Back to today</button><span class="dot" id="syncDot"></span></div>
+  </div>
+  <button class="arrow" id="next" aria-label="Next day">›</button>
+</header>
+
+<main>
+  <div class="cal" id="cal">
+    <div class="cal-head"><button id="calPrev" aria-label="Previous month">‹</button><span id="calTitle"></span><button id="calNext" aria-label="Next month">›</button></div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <section id="journal">
+    <div class="field">
+      <span class="label">Mood</span>
+      <div class="moods" id="moods"></div>
+    </div>
+    <div id="questions"></div>
+    <button id="moreQs" class="morelink">Something to tell someone?</button>
+    <div class="earlier">
+      <div class="earlier-head"><span class="label">Earlier entries</span><input id="search" type="search" placeholder="Search"></div>
+      <ul id="entries"></ul>
+    </div>
+  </section>
+
+  <section id="tasks" hidden>
+    <ul class="tasklist" id="openList"></ul>
+    <form id="addForm"><input id="addInput" placeholder="Add a task" autocomplete="off" enterkeyhint="done"></form>
+    <div class="pastnote" id="pastNote" hidden>This day has passed. Unfinished tasks carried over to today.</div>
+    <div id="doneWrap"><span class="label">Done · <span id="doneCount"></span></span><ul class="tasklist" id="doneList"></ul></div>
+  </section>
+
+  <section id="settings" hidden>
+    <div class="set">
+      <span class="label">Google Sheet sync</span>
+      <input id="cfgUrl" placeholder="Sync code or web app URL" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <input id="cfgKey" placeholder="Secret key (not needed with a sync code)" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="btn primary" id="cfgSave">Save &amp; sync</button>
+      <button class="btn" id="syncNow">Sync now</button>
+      <p class="help" id="syncStatus"></p>
+    </div>
+    <div class="set">
+      <span class="label">Backup</span>
+      <p class="help">Everything is saved on this device and in your Google Sheet. You can also download a copy.</p>
+      <button class="btn" id="exportBtn">Download backup (.json)</button>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-tab="journal">Journal</button>
+  <button data-tab="tasks">Tasks</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+
+<script>
+const MOODS = ['awful', 'low', 'okay', 'good', 'great'];
+const $ = id => document.getElementById(id);
+
+// ---------- dates (local, YYYY-MM-DD) ----------
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
+const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+const today = () => ymd(new Date());
+const fmt = (s, o) => parse(s).toLocaleDateString(undefined, o);
+
+// ---------- storage ----------
+const blank = () => ({ Journal: {}, Tasks: {}, dirty: { Journal: {}, Tasks: {} }, since: 0 });
+let data, cfg;
+try { data = Object.assign(blank(), JSON.parse(localStorage.getItem('j.data'))); } catch { data = blank(); }
+try { cfg = JSON.parse(localStorage.getItem('j.cfg')) || {}; } catch { cfg = {}; }
+
+let saveTimer;
+function save(now) {
+  clearTimeout(saveTimer);
+  const write = () => localStorage.setItem('j.data', JSON.stringify(data));
+  now ? write() : (saveTimer = setTimeout(write, 300));
+}
+function touch(table, rec) {
+  rec.updatedAt = Date.now();
+  data[table][rec.id] = rec;
+  data.dirty[table][rec.id] = 1;
+  save();
+  scheduleSync();
+  updateDot();
+}
+
+// ---------- ui state ----------
+let tab = localStorage.getItem('j.tab') || 'journal';
+let sel = today(), lastToday = today();
+let calMonth = sel.slice(0, 7);
+
+function render() {
+  for (const t of ['journal', 'tasks', 'settings']) $(t).hidden = t !== tab;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  const t = today(), isSettings = tab === 'settings';
+  $('prev').style.visibility = $('next').style.visibility = isSettings ? 'hidden' : '';
+  $('dateTitle').textContent = isSettings ? 'Settings' : fmt(sel, { weekday: 'long', month: 'long', day: 'numeric' });
+  const diff = daysBetween(t, sel);
+  $('dateRel').textContent = isSettings ? '' : diff === 0 ? 'Today' : diff === -1 ? 'Yesterday' : diff === 1 ? 'Tomorrow' : fmt(sel, { year: 'numeric' });
+  $('todayBtn').hidden = isSettings || diff === 0;
+  $('cal').hidden = isSettings;
+  if (!isSettings) renderCal();
+  if (tab === 'journal') renderJournal();
+  if (tab === 'tasks') renderTasks();
+  if (tab === 'settings') renderSettings();
+  updateDot();
+}
+
+function go(d) {
+  sel = d;
+  calMonth = d.slice(0, 7);
+  render();
+}
+
+// ---------- journal ----------
+const QUESTIONS = [
+  ['ate', 'What did I eat today?', 'Breakfast, lunch, dinner…'],
+  ['fun', 'What fun things did I do?', ''],
+  ['work', 'What work did I get done?', ''],
+  ['happy', "One thing I'm happy about", ''],
+  ['sad', "One thing I'm sad about", ''],
+  ['thoughts', 'Any other emotions or thoughts?', ''],
+  ['tell', 'Something I want to tell someone', 'Who, and what would I say?'],
+];
+const KEYS = QUESTIONS.map(q => q[0]);
+let showAll = false, shownFor = '';
+
+const entry = d => { const e = data.Journal[d]; return e && !e.deleted ? e : null; };
+const grow = ta => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+
+// The six daily questions always show; the rest appear on "Answer more" or once answered.
+function shownKeys(d, e) {
+  return KEYS.filter((k, i) => showAll || i < 6 || (e[k] || '').trim());
+}
+
+function renderJournal() {
+  const e = entry(sel) || {};
+  if (shownFor !== sel) { showAll = false; shownFor = sel; }
+  const box = $('questions'), keys = shownKeys(sel, e);
+  const current = [...box.querySelectorAll('textarea')].map(t => t.dataset.k);
+  if (current.join() !== keys.join() && !box.contains(document.activeElement)) {
+    box.replaceChildren(...keys.map(k => {
+      const [, label, ph] = QUESTIONS[KEYS.indexOf(k)];
+      const f = document.createElement('div'); f.className = 'field';
+      const l = document.createElement('label'); l.className = 'q'; l.textContent = label; l.htmlFor = 'q-' + k;
+      const ta = document.createElement('textarea'); ta.id = 'q-' + k; ta.dataset.k = k; ta.placeholder = ph;
+      ta.addEventListener('input', () => { setEntry(k, ta.value); grow(ta); });
+      f.append(l, ta);
+      return f;
+    }));
+  }
+  box.querySelectorAll('textarea').forEach(ta => {
+    if (document.activeElement !== ta) ta.value = e[ta.dataset.k] || '';
+    grow(ta);
+  });
+  $('moreQs').hidden = keys.length === KEYS.length;
+  $('moods').replaceChildren(...MOODS.map((m, i) => {
+    const b = document.createElement('button');
+    b.textContent = m;
+    b.classList.toggle('on', String(e.mood) === String(i + 1));
+    b.onclick = () => setEntry('mood', String(e.mood) === String(i + 1) ? '' : String(i + 1));
+    return b;
+  }));
+  renderEntries();
+}
+
+function setEntry(k, v) {
+  const base = { id: sel, date: sel, mood: '' };
+  KEYS.forEach(key => base[key] = '');
+  const isNew = !entry(sel);
+  const e = { ...(entry(sel) || base), deleted: false };
+  e[k] = v;
+  touch('Journal', e);
+  if (isNew) renderCal();
+  if (k === 'mood') renderJournal();
+}
+
+const preview = e => KEYS.map(k => e[k]).find(s => s && s.trim()) || '';
+function renderEntries() {
+  const q = $('search').value.trim().toLowerCase();
+  let list = Object.values(data.Journal)
+    .filter(e => !e.deleted && e.date !== sel && (preview(e) || e.mood))
+    .filter(e => !q || KEYS.map(k => e[k] || '').join(' ').toLowerCase().includes(q))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  if (!q) list = list.slice(0, 60);
+  const ul = $('entries');
+  if (!list.length) {
+    ul.innerHTML = `<li class="empty" style="cursor:default">${q ? 'No matches.' : 'Your past entries will show up here.'}</li>`;
+    return;
+  }
+  ul.replaceChildren(...list.map(e => {
+    const li = document.createElement('li');
+    const d = document.createElement('div'); d.className = 'd';
+    const a = document.createElement('span'); a.textContent = fmt(e.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const m = document.createElement('span'); m.textContent = e.mood ? MOODS[e.mood - 1] : '';
+    d.append(a, m);
+    const p = document.createElement('div'); p.className = 'p'; p.textContent = preview(e);
+    li.append(d, p);
+    li.onclick = () => { go(e.date); window.scrollTo(0, 0); };
+    return li;
+  }));
+}
+
+$('moreQs').onclick = () => { showAll = true; renderJournal(); };
+$('search').addEventListener('input', renderEntries);
+
+// ---------- tasks ----------
+// A task sits on `date`. Until it's done it also shows on every later day up to today (carried over).
+const live = () => Object.values(data.Tasks).filter(t => !t.deleted);
+function tasksFor(D) {
+  const t = today();
+  return live().filter(x => D > t ? x.date === D : x.date <= D && (!x.doneDate || x.doneDate >= D));
+}
+const isDone = (x, D) => !!x.doneDate && (x.doneDate <= D || x.date > today());
+
+function renderTasks() {
+  const t = today(), list = tasksFor(sel).sort((a, b) => a.createdAt - b.createdAt);
+  const open = list.filter(x => !isDone(x, sel)), done = list.filter(x => isDone(x, sel));
+  $('openList').replaceChildren(...open.map(x => taskRow(x, false)));
+  $('doneList').replaceChildren(...done.map(x => taskRow(x, true)));
+  $('doneCount').textContent = done.length;
+  $('doneWrap').hidden = !done.length;
+  $('addForm').hidden = sel < t;
+  $('pastNote').hidden = !(sel < t);
+}
+
+function taskRow(x, done) {
+  const li = document.createElement('li');
+  li.className = 'task' + (done ? ' done' : '');
+  const c = document.createElement('button'); c.className = 'check'; c.setAttribute('aria-label', done ? 'Mark not done' : 'Mark done');
+  c.onclick = () => {
+    const t = today();
+    touch('Tasks', { ...x, doneDate: done ? '' : (sel <= t ? sel : t) });
+    renderCal(); renderTasks();
+  };
+  const ttl = document.createElement('input'); ttl.className = 'ttl'; ttl.value = x.title;
+  ttl.addEventListener('keydown', e => { if (e.key === 'Enter') ttl.blur(); });
+  ttl.addEventListener('change', () => {
+    const v = ttl.value.trim();
+    touch('Tasks', v ? { ...data.Tasks[x.id], title: v } : { ...data.Tasks[x.id], deleted: true });
+    if (!v) { renderCal(); renderTasks(); }
+  });
+  li.append(c, ttl);
+  const carried = !done ? daysBetween(x.date, sel) : 0;
+  if (carried > 0) {
+    const s = document.createElement('span');
+    s.className = 'carry' + (carried >= 7 ? ' c7' : carried >= 3 ? ' c3' : '');
+    s.textContent = '↻' + carried;
+    s.title = `Carried over ${carried} day${carried > 1 ? 's' : ''}`;
+    li.append(s);
+  }
+  const more = document.createElement('button'); more.className = 'more'; more.textContent = '···'; more.setAttribute('aria-label', 'More');
+  more.onclick = () => li.classList.toggle('showacts');
+  const acts = document.createElement('div'); acts.className = 'acts';
+  const t = today();
+  if (!done) {
+    const tm = document.createElement('button'); tm.textContent = 'Move to tomorrow';
+    tm.onclick = () => { touch('Tasks', { ...x, date: addDays(sel < t ? t : sel, 1) }); renderCal(); renderTasks(); };
+    acts.append(tm);
+  }
+  const del = document.createElement('button'); del.className = 'del'; del.textContent = 'Delete';
+  del.onclick = () => { touch('Tasks', { ...x, deleted: true }); renderCal(); renderTasks(); };
+  acts.append(del);
+  li.append(more, acts);
+  return li;
+}
+
+$('addForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const title = $('addInput').value.trim();
+  if (!title) return;
+  const now = Date.now();
+  touch('Tasks', { id: now.toString(36) + Math.random().toString(36).slice(2, 7), title, date: sel, doneDate: '', createdAt: now, deleted: false });
+  $('addInput').value = '';
+  renderCal(); renderTasks();
+  $('addInput').focus();
+});
+
+function renderCal() {
+  const [y, m] = calMonth.split('-').map(Number);
+  const first = new Date(y, m - 1, 1), t = today();
+  $('calTitle').textContent = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(w => {
+    const d = document.createElement('div'); d.className = 'wd'; d.textContent = w; return d;
+  });
+  for (let i = 0; i < first.getDay(); i++) cells.push(document.createElement('div'));
+  const n = new Date(y, m, 0).getDate();
+  for (let day = 1; day <= n; day++) {
+    const D = `${calMonth}-${pad(day)}`;
+    const b = document.createElement('button');
+    b.className = (D < t ? 'past' : '') + (D === t ? ' today' : '') + (D === sel ? ' sel' : '');
+    const dot = document.createElement('i');
+    if (tab === 'journal') {
+      const e = entry(D);
+      if (e && (preview(e) || e.mood)) dot.className = 'open';
+    } else {
+      const list = tasksFor(D);
+      if (list.length) dot.className = list.some(x => !isDone(x, D)) ? 'open' : 'done';
+    }
+    b.append(String(day), dot);
+    b.onclick = () => go(D);
+    cells.push(b);
+  }
+  $('calGrid').replaceChildren(...cells);
+}
+const shiftMonth = n => { const [y, m] = calMonth.split('-').map(Number); calMonth = ymd(new Date(y, m - 1 + n, 1)).slice(0, 7); renderCal(); };
+$('calPrev').onclick = () => shiftMonth(-1);
+$('calNext').onclick = () => shiftMonth(1);
+
+// ---------- sync with Google Sheet ----------
+let syncing = false, syncTimer, syncError = '', lastSynced = Number(localStorage.getItem('j.lastSynced')) || 0;
+const pending = () => Object.keys(data.dirty.Journal).length + Object.keys(data.dirty.Tasks).length;
+const configured = () => cfg.url && cfg.key;
+
+function scheduleSync() { clearTimeout(syncTimer); syncTimer = setTimeout(sync, 1500); }
+
+function normalize(table, r) {
+  const rec = { ...r, updatedAt: Number(r.updatedAt) || 0, deleted: r.deleted === true || r.deleted === 'true' };
+  if (table === 'Tasks') rec.createdAt = Number(r.createdAt) || 0;
+  delete rec.syncedAt;
+  return rec;
+}
+
+async function sync() {
+  if (!configured() || syncing) return updateDot();
+  if (!navigator.onLine) { syncError = 'Offline. Changes are saved here and will sync later.'; return updateDot(); }
+  syncing = true; updateDot();
+  const changes = {};
+  for (const T of ['Journal', 'Tasks']) changes[T] = Object.keys(data.dirty[T]).map(id => ({ ...data[T][id] }));
+  try {
+    const res = await fetch(cfg.url, { method: 'POST', body: JSON.stringify({ key: cfg.key, since: data.since, changes }) });
+    const out = await res.json();
+    if (out.error) throw new Error(out.error === 'bad key' ? 'Secret key doesn\'t match.' : out.error);
+    for (const T of ['Journal', 'Tasks']) {
+      for (const sent of changes[T]) if (data[T][sent.id]?.updatedAt === sent.updatedAt) delete data.dirty[T][sent.id];
+      for (const r of out[T] || []) {
+        const rec = normalize(T, r), local = data[T][rec.id];
+        if (!local || !data.dirty[T][rec.id] || rec.updatedAt >= local.updatedAt) {
+          data[T][rec.id] = rec;
+          delete data.dirty[T][rec.id];
+        }
+      }
+    }
+    data.since = out.now;
+    save(true);
+    syncError = '';
+    lastSynced = Date.now();
+    localStorage.setItem('j.lastSynced', lastSynced);
+    if (!document.activeElement || !document.activeElement.matches('.ttl, #addInput')) render();
+  } catch (err) {
+    syncError = 'Sync failed: ' + (err.message || err);
+  } finally {
+    syncing = false;
+    updateDot();
+  }
+}
+
+function updateDot() {
+  const dot = $('syncDot');
+  dot.className = 'dot ' + (!configured() ? '' : syncError ? 'err' : (syncing || pending()) ? 'pending' : 'ok');
+  dot.title = !configured() ? 'Sync not set up' : syncError || (pending() ? 'Syncing…' : 'Synced');
+  if (tab === 'settings') renderSyncStatus();
+}
+
+// ---------- settings ----------
+function renderSettings() {
+  $('cfgUrl').value = cfg.url || '';
+  $('cfgKey').value = cfg.key || '';
+  renderSyncStatus();
+}
+function renderSyncStatus() {
+  $('syncStatus').textContent = !configured() ? 'Not set up yet. Your data is only on this device for now.'
+    : syncError ? syncError
+    : syncing ? 'Syncing…'
+    : (pending() ? `${pending()} change(s) waiting to sync. ` : '') + (lastSynced ? 'Last synced ' + new Date(lastSynced).toLocaleString() : 'Not synced yet.');
+}
+$('cfgSave').onclick = () => {
+  let url = $('cfgUrl').value.trim(), key = $('cfgKey').value.trim();
+  const code = url.match(/^(\S+)#key=(\S+)$/); // a full sync code pasted into the URL box
+  if (code) [, url, key] = code;
+  if (url !== cfg.url) {
+    // New sheet: pull everything and push everything we have locally.
+    data.since = 0;
+    for (const T of ['Journal', 'Tasks']) for (const id in data[T]) data.dirty[T][id] = 1;
+    save(true);
+  }
+  cfg = { url, key };
+  localStorage.setItem('j.cfg', JSON.stringify(cfg));
+  syncError = '';
+  sync();
+};
+$('syncNow').onclick = sync;
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), journal: data.Journal, tasks: data.Tasks }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `journal-backup-${today()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+// ---------- wiring ----------
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  tab = b.dataset.tab;
+  localStorage.setItem('j.tab', tab);
+  render();
+  window.scrollTo(0, 0);
+});
+$('prev').onclick = () => go(addDays(sel, -1));
+$('next').onclick = () => go(addDays(sel, 1));
+$('todayBtn').onclick = () => go(today());
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { save(true); return; }
+  const t = today();
+  if (t !== lastToday) { if (sel === lastToday) sel = t; lastToday = t; calMonth = sel.slice(0, 7); }
+  render();
+  sync();
+});
+window.addEventListener('pagehide', () => save(true));
+window.addEventListener('online', sync);
+setInterval(() => { if (document.visibilityState === 'visible') sync(); }, 60000);
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+render();
+sync();
+</script>
+</body>
+</html>
