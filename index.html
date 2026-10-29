@@ -69,7 +69,7 @@
   /* Calendar */
   .cal { padding: 4px 0 12px; border-bottom: 1px solid var(--line); }
   .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .cal-head span { font-size: 14px; font-weight: 600; }
+  #calTitle { font-size: 14px; font-weight: 600; white-space: pre; }
   .cal-head button { width: 32px; height: 32px; color: var(--muted); font-size: 20px; }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 2px; text-align: center; }
   .cal-grid .wd { font-size: 11px; color: var(--faint); padding-bottom: 4px; }
@@ -97,7 +97,19 @@
   .acts button.del { color: var(--warn); }
   #addForm { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
   #addForm::before { content: "+"; width: 22px; text-align: center; color: var(--faint); font-size: 20px; }
-  #addInput { flex: 1; font-size: 17px; }
+  #addInput { flex: 1; min-width: 0; font-size: 17px; }
+  .psel { font: inherit; font-size: 13px; color: var(--muted); background: var(--surface); border: 0; border-radius: 999px; padding: 5px 10px; max-width: 45%; -webkit-appearance: none; appearance: none; }
+  .group { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); padding: 20px 0 4px; border-bottom: 1px solid var(--line); }
+  .count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .subs { list-style: none; margin: 0; padding: 0 0 0 34px; width: 100%; }
+  .sub { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .sub .ttl { font-size: 15px; }
+  .sub.done .ttl { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+  .check.small { width: 18px; height: 18px; }
+  .sub.done .check { background: var(--accent); border-color: var(--accent); }
+  .sub.done .check::after { content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .sub .x { color: var(--faint); font-size: 18px; width: 24px; }
+  .subadd { flex: 1; font-size: 15px; padding-left: 28px; }
   #doneWrap { margin-top: 28px; }
 
   /* Projects */
@@ -125,6 +137,18 @@
   .note textarea { width: 100%; resize: none; overflow: hidden; min-height: 52px; padding: 0; font: 17px/1.6 var(--serif); }
   .note .tldr { font-weight: 600; min-height: 28px; }
   .note .sub { font-size: 13px; color: var(--muted); margin-top: 10px; display: block; }
+  .note.tinted { border-left: 3px solid var(--tint); padding-left: 12px; }
+  .note-head .labels { display: none; gap: 6px; }
+  .note.showacts .note-head .labels { display: inline-flex; }
+  .swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--faint); }
+  .swatch.on { outline: 2px solid var(--text); outline-offset: 1px; }
+  .rich { min-height: 52px; font: 17px/1.6 var(--serif); outline: none; word-wrap: break-word; }
+  .rich:empty::before { content: attr(data-ph); color: var(--faint); }
+  .rich ul, .rich ol { margin: 4px 0; padding-left: 22px; }
+  .fmt { display: none; gap: 8px; align-items: center; padding: 6px 0 10px; flex-wrap: wrap; }
+  .richwrap:focus-within .fmt { display: flex; }
+  .fmt button { min-width: 30px; height: 30px; border-radius: 8px; background: var(--surface); color: var(--text); font-size: 15px; }
+  .fmt button.swatch { min-width: 22px; width: 22px; height: 22px; border-radius: 50%; border: 0; }
 
   /* Settings */
   .set { padding: 16px 0; border-bottom: 1px solid var(--line); }
@@ -156,7 +180,7 @@
 
 <main>
   <div class="cal" id="cal">
-    <div class="cal-head"><button id="calPrev" aria-label="Previous month">‹</button><span id="calTitle"></span><button id="calNext" aria-label="Next month">›</button></div>
+    <div class="cal-head"><button id="calPrev" aria-label="Previous month">‹</button><button id="calTitle" aria-label="Fold calendar"></button><button id="calNext" aria-label="Next month">›</button></div>
     <div class="cal-grid" id="calGrid"></div>
   </div>
 
@@ -175,7 +199,7 @@
 
   <section id="tasks" hidden>
     <ul class="tasklist" id="openList"></ul>
-    <form id="addForm"><input id="addInput" placeholder="Add a task" autocomplete="off" enterkeyhint="done"></form>
+    <form id="addForm"><input id="addInput" placeholder="Add a task" autocomplete="off" enterkeyhint="done"><select id="addProject"></select></form>
     <div id="doneWrap"><span class="label">Done · <span id="doneCount"></span></span><ul class="tasklist" id="doneList"></ul></div>
   </section>
 
@@ -231,6 +255,7 @@ const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date
 const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
 const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
 const today = () => ymd(new Date());
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const fmt = (s, o) => parse(s).toLocaleDateString(undefined, o);
 
 // ---------- storage ----------
@@ -379,39 +404,82 @@ $('search').addEventListener('input', renderEntries);
 
 // ---------- tasks ----------
 // A task sits on `date`. Until it's done it also shows on every later day up to today (carried over).
+// Sub-items (parentId set) live inside their parent and travel with it.
 const live = () => Object.values(data.Tasks).filter(t => !t.deleted);
+const subsOf = id => live().filter(s => s.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
 function tasksFor(D) {
   const t = today();
-  return live().filter(x => D > t ? x.date === D : x.date <= D && (!x.doneDate || x.doneDate >= D));
+  return live().filter(x => !x.parentId && (D > t ? x.date === D : x.date <= D && (!x.doneDate || x.doneDate >= D)));
 }
 const isDone = (x, D) => !!x.doneDate && (x.doneDate <= D || x.date > today());
+const projName = id => data.Projects[id] && !data.Projects[id].deleted ? data.Projects[id].name : '';
+const liveProjects = () => Object.values(data.Projects).filter(p => !p.deleted).sort((a, b) => a.name.localeCompare(b.name));
+const collapsed = new Set(JSON.parse(localStorage.getItem('j.collapsed') || '[]'));
+let subAddFor = '';
+
+function projectSelect(value, onChange) {
+  const s = document.createElement('select'); s.className = 'psel';
+  s.append(new Option('No project', ''), ...liveProjects().map(p => new Option(p.name, p.id)));
+  s.value = projName(value) ? value : '';
+  s.onchange = () => onChange(s.value);
+  return s;
+}
 
 function renderTasks() {
+  const sel0 = $('addProject');
+  sel0.replaceWith(Object.assign(projectSelect(localStorage.getItem('j.addProject') || '', v => localStorage.setItem('j.addProject', v)), { id: 'addProject' }));
   const list = tasksFor(sel).sort((a, b) => a.createdAt - b.createdAt);
   const open = list.filter(x => !isDone(x, sel)), done = list.filter(x => isDone(x, sel));
-  $('openList').replaceChildren(...open.map(x => taskRow(x, false)));
+  // Open tasks: ungrouped first, then one section per project.
+  const groups = new Map();
+  for (const x of open) {
+    const k = projName(x.projectId) ? x.projectId : '';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(x);
+  }
+  const rows = [];
+  [...groups.keys()].sort((a, b) => !a ? -1 : !b ? 1 : projName(a).localeCompare(projName(b))).forEach(k => {
+    if (k) { const h = document.createElement('li'); h.className = 'group'; h.textContent = projName(k); rows.push(h); }
+    rows.push(...groups.get(k).map(x => taskRow(x, false)));
+  });
+  $('openList').replaceChildren(...rows);
   $('doneList').replaceChildren(...done.map(x => taskRow(x, true)));
   $('doneCount').textContent = done.length;
   $('doneWrap').hidden = !done.length;
+  if (subAddFor) document.querySelector(`[data-subadd="${subAddFor}"]`)?.focus();
 }
+const rerender = () => { renderCal(); renderTasks(); };
 
 function taskRow(x, done) {
   const li = document.createElement('li');
   li.className = 'task' + (done ? ' done' : '');
+  const subs = subsOf(x.id), isOpen = !collapsed.has(x.id);
   const c = document.createElement('button'); c.className = 'check'; c.setAttribute('aria-label', done ? 'Mark not done' : 'Mark done');
   c.onclick = () => {
     const t = today();
     touch('Tasks', { ...x, doneDate: done ? '' : (sel <= t ? sel : t) });
-    renderCal(); renderTasks();
+    rerender();
   };
   const ttl = document.createElement('input'); ttl.className = 'ttl'; ttl.value = x.title;
   ttl.addEventListener('keydown', e => { if (e.key === 'Enter') ttl.blur(); });
   ttl.addEventListener('change', () => {
     const v = ttl.value.trim();
-    touch('Tasks', v ? { ...data.Tasks[x.id], title: v } : { ...data.Tasks[x.id], deleted: true });
-    if (!v) { renderCal(); renderTasks(); }
+    if (v) touch('Tasks', { ...data.Tasks[x.id], title: v });
+    else { removeTask(x); rerender(); }
   });
   li.append(c, ttl);
+  if (subs.length) {
+    const n = subs.filter(s => s.doneDate).length;
+    const cnt = document.createElement('button'); cnt.className = 'count';
+    cnt.textContent = `${n}/${subs.length} ${isOpen ? '▾' : '▸'}`;
+    cnt.setAttribute('aria-label', isOpen ? 'Hide items' : 'Show items');
+    cnt.onclick = () => {
+      isOpen ? collapsed.add(x.id) : collapsed.delete(x.id);
+      localStorage.setItem('j.collapsed', JSON.stringify([...collapsed]));
+      renderTasks();
+    };
+    li.append(cnt);
+  }
   const carried = !done ? daysBetween(x.date, sel) : 0;
   if (carried > 0) {
     const s = document.createElement('span');
@@ -424,33 +492,83 @@ function taskRow(x, done) {
   more.onclick = () => li.classList.toggle('showacts');
   const acts = document.createElement('div'); acts.className = 'acts';
   const t = today();
+  const addItems = document.createElement('button'); addItems.textContent = 'Add items';
+  addItems.onclick = () => { subAddFor = x.id; collapsed.delete(x.id); renderTasks(); };
+  acts.append(addItems, projectSelect(x.projectId, v => { touch('Tasks', { ...data.Tasks[x.id], projectId: v }); renderTasks(); }));
   if (!done) {
     const tm = document.createElement('button'); tm.textContent = 'Move to tomorrow';
-    tm.onclick = () => { touch('Tasks', { ...x, date: addDays(sel < t ? t : sel, 1) }); renderCal(); renderTasks(); };
+    tm.onclick = () => { touch('Tasks', { ...x, date: addDays(sel < t ? t : sel, 1) }); rerender(); };
     acts.append(tm);
   }
   const del = document.createElement('button'); del.className = 'del'; del.textContent = 'Delete';
-  del.onclick = () => { touch('Tasks', { ...x, deleted: true }); renderCal(); renderTasks(); };
+  del.onclick = () => { removeTask(x); rerender(); };
   acts.append(del);
   li.append(more, acts);
+
+  if ((subs.length && isOpen) || subAddFor === x.id) {
+    const ul = document.createElement('ul'); ul.className = 'subs';
+    ul.append(...subs.map(subRow));
+    const add = document.createElement('input'); add.className = 'subadd'; add.placeholder = 'Add item'; add.dataset.subadd = x.id;
+    add.autocomplete = 'off'; add.enterKeyHint = 'done';
+    add.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const v = add.value.trim();
+      if (!v) { subAddFor = ''; add.blur(); renderTasks(); return; }
+      const now = Date.now();
+      touch('Tasks', { id: newId(), title: v, parentId: x.id, projectId: '', date: x.date, doneDate: '', createdAt: now, deleted: false });
+      subAddFor = x.id;
+      renderTasks();
+    });
+    add.addEventListener('blur', () => { if (!add.value.trim()) subAddFor = ''; });
+    const li2 = document.createElement('li'); li2.className = 'sub addrow'; li2.append(add);
+    ul.append(li2);
+    li.append(ul);
+  }
   return li;
+}
+
+function subRow(s) {
+  const li = document.createElement('li'); li.className = 'sub' + (s.doneDate ? ' done' : '');
+  const c = document.createElement('button'); c.className = 'check small'; c.setAttribute('aria-label', s.doneDate ? 'Mark not done' : 'Mark done');
+  c.onclick = () => { touch('Tasks', { ...s, doneDate: s.doneDate ? '' : today() }); renderTasks(); };
+  const ttl = document.createElement('input'); ttl.className = 'ttl'; ttl.value = s.title;
+  ttl.addEventListener('keydown', e => { if (e.key === 'Enter') ttl.blur(); });
+  ttl.addEventListener('change', () => {
+    const v = ttl.value.trim();
+    touch('Tasks', v ? { ...data.Tasks[s.id], title: v } : { ...data.Tasks[s.id], deleted: true });
+    if (!v) renderTasks();
+  });
+  const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Remove item');
+  x.onclick = () => { touch('Tasks', { ...s, deleted: true }); renderTasks(); };
+  li.append(c, ttl, x);
+  return li;
+}
+
+function removeTask(x) {
+  for (const s of subsOf(x.id)) touch('Tasks', { ...s, deleted: true });
+  touch('Tasks', { ...data.Tasks[x.id], deleted: true });
 }
 
 $('addForm').addEventListener('submit', e => {
   e.preventDefault();
   const title = $('addInput').value.trim();
   if (!title) return;
-  const now = Date.now();
-  touch('Tasks', { id: now.toString(36) + Math.random().toString(36).slice(2, 7), title, date: sel, doneDate: '', createdAt: now, deleted: false });
+  const projectId = $('addProject').value;
+  touch('Tasks', { id: newId(), title, date: sel, doneDate: '', createdAt: Date.now(), deleted: false, projectId, parentId: '' });
   $('addInput').value = '';
-  renderCal(); renderTasks();
+  rerender();
   $('addInput').focus();
 });
 
+// Calendar folds away per tab; the choice is remembered on this device.
+const calFolded = () => localStorage.getItem('j.calFolded.' + tab) === '1';
 function renderCal() {
   const [y, m] = calMonth.split('-').map(Number);
-  const first = new Date(y, m - 1, 1), t = today();
-  $('calTitle').textContent = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const first = new Date(y, m - 1, 1), t = today(), folded = calFolded();
+  $('calTitle').textContent = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) + (folded ? '  ▸' : '  ▾');
+  $('calGrid').hidden = folded;
+  $('calPrev').style.visibility = $('calNext').style.visibility = folded ? 'hidden' : '';
+  if (folded) return;
   const cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(w => {
     const d = document.createElement('div'); d.className = 'wd'; d.textContent = w; return d;
   });
@@ -477,15 +595,71 @@ function renderCal() {
 const shiftMonth = n => { const [y, m] = calMonth.split('-').map(Number); calMonth = ymd(new Date(y, m - 1 + n, 1)).slice(0, 7); renderCal(); };
 $('calPrev').onclick = () => shiftMonth(-1);
 $('calNext').onclick = () => shiftMonth(1);
+$('calTitle').onclick = () => { localStorage.setItem('j.calFolded.' + tab, calFolded() ? '0' : '1'); renderCal(); };
 
 // ---------- projects ----------
 let openProject = null;
 const liveIn = T => Object.values(data[T]).filter(x => !x.deleted);
 const notesOf = pid => liveIn('Notes').filter(n => n.projectId === pid).sort((a, b) => b.createdAt - a.createdAt);
 const stamp = ms => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const localDT = (d = new Date()) => `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const NOTE_TEXT = ['attendees', 'tldr', 'body'];
+const NOTE_COLORS = { red: '#e07a6f', amber: '#d9b45f', green: '#7fb685', blue: '#7aa7d9', purple: '#b294d6' };
+const RICH_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'DIV', 'P', 'SPAN', 'FONT', 'UL', 'OL', 'LI']);
+const stripTags = h => (h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
+
+// Keep only basic formatting (bold, italic, underline, lists, text color); drop everything else.
+function cleanHTML(html) {
+  const root = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html').body.firstChild;
+  const walk = node => {
+    for (const el of [...node.children]) {
+      if (['SCRIPT', 'STYLE', 'TEMPLATE', 'IFRAME', 'OBJECT', 'NOSCRIPT', 'TITLE'].includes(el.tagName)) { el.remove(); continue; }
+      walk(el);
+      if (!RICH_TAGS.has(el.tagName)) { el.replaceWith(...el.childNodes); continue; }
+      const color = el.style.color || el.getAttribute('color') || '';
+      const bold = /bold|[6-9]00/.test(el.style.fontWeight);
+      for (const a of [...el.attributes]) el.removeAttribute(a.name);
+      if (color) el.style.color = color;
+      if (bold) el.style.fontWeight = 'bold';
+    }
+  };
+  walk(root);
+  return root.innerHTML;
+}
+const toHTML = body => !body ? '' : /<[a-z][\s\S]*>/i.test(body) ? cleanHTML(body)
+  : body.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]).replace(/\n/g, '<br>');
+
+function richEditor(n, ph) {
+  const wrap = document.createElement('div'); wrap.className = 'richwrap';
+  const ed = document.createElement('div'); ed.className = 'rich'; ed.contentEditable = 'true'; ed.dataset.ph = ph;
+  ed.innerHTML = toHTML(n.body);
+  const save = () => {
+    const empty = !ed.innerText.trim();
+    if (empty) ed.innerHTML = '';
+    touch('Notes', { ...data.Notes[n.id], body: empty ? '' : cleanHTML(ed.innerHTML), text: ed.innerText.trim() });
+  };
+  ed.addEventListener('input', save);
+  const bar = document.createElement('div'); bar.className = 'fmt';
+  const tool = (label, title, run, style) => {
+    const b = document.createElement('button'); b.type = 'button'; b.innerHTML = label; b.title = title;
+    if (style) b.style.cssText = style;
+    // keep the text selection: act on pointerdown and never take focus
+    b.addEventListener('pointerdown', e => { e.preventDefault(); run(); save(); });
+    b.addEventListener('mousedown', e => e.preventDefault());
+    return b;
+  };
+  const cmd = (c, v) => { document.execCommand('styleWithCSS', false, true); document.execCommand(c, false, v); };
+  bar.append(
+    tool('<b>B</b>', 'Bold', () => cmd('bold')),
+    tool('<i>I</i>', 'Italic', () => cmd('italic')),
+    tool('•', 'Bulleted list', () => cmd('insertUnorderedList')),
+    ...Object.entries(NOTE_COLORS).map(([name, hex]) => tool('', name, () => cmd('foreColor', hex), `background:${hex}`)),
+    tool('⌫', 'Clear formatting', () => cmd('removeFormat')),
+  );
+  [...bar.children].slice(3, 3 + Object.keys(NOTE_COLORS).length).forEach(b => b.className = 'swatch');
+  wrap.append(bar, ed);
+  return wrap;
+}
 
 function renderProjects() {
   if (openProject && !data.Projects[openProject] || data.Projects[openProject]?.deleted) openProject = null;
@@ -530,7 +704,15 @@ function noteCard(n) {
   more.onclick = () => card.classList.toggle('showacts');
   const del = document.createElement('button'); del.className = 'del'; del.textContent = 'Delete';
   del.onclick = () => { touch('Notes', { ...data.Notes[n.id], deleted: true }); renderProjectView(); };
-  head.append(more, del);
+  const labels = document.createElement('span'); labels.className = 'labels';
+  for (const [name, hex] of [['', ''], ...Object.entries(NOTE_COLORS)]) {
+    const b = document.createElement('button'); b.className = 'swatch' + (name === (n.color || '') ? ' on' : '');
+    b.title = name ? `Label ${name}` : 'No label';
+    b.style.background = hex || 'transparent';
+    b.onclick = () => { touch('Notes', { ...data.Notes[n.id], color: name }); $('noteItems').replaceChildren(); renderProjectView(); };
+    labels.append(b);
+  }
+  head.append(more, labels, del);
   card.append(head);
 
   const area = (k, ph, cls) => {
@@ -548,28 +730,29 @@ function noteCard(n) {
     dt.addEventListener('change', () => set('when', dt.value));
     card.append(row('Who', who), row('When', dt), row('TL;DR', area('tldr', 'The short version…', 'tldr')));
     const sub = document.createElement('span'); sub.className = 'sub'; sub.textContent = 'Notes';
-    card.append(sub, area('body', 'Details, decisions, next steps…'));
+    card.append(sub, richEditor(n, 'Details, decisions, next steps…'));
   } else {
-    card.append(area('body', 'Write your note…'));
+    card.append(richEditor(n, 'Write your note…'));
   }
+  if (n.color && NOTE_COLORS[n.color]) { card.classList.add('tinted'); card.style.setProperty('--tint', NOTE_COLORS[n.color]); }
   return card;
 }
 
 function addNote(type) {
   const now = Date.now();
-  const n = { id: newId(), projectId: openProject, type, createdAt: now, attendees: '', when: type === 'meeting' ? localDT() : '', tldr: '', body: '', deleted: false };
+  const n = { id: newId(), projectId: openProject, type, createdAt: now, attendees: '', when: type === 'meeting' ? localDT() : '', tldr: '', body: '', color: '', text: '', deleted: false };
   touch('Notes', n);
   touch('Projects', { ...data.Projects[openProject] }); // bump project to the top of the list
   $('noteItems').replaceChildren(); // force rebuild
   renderProjectView();
-  const first = $('noteItems').querySelector(type === 'meeting' ? 'input' : 'textarea');
+  const first = $('noteItems').querySelector(type === 'meeting' ? 'input' : '.rich');
   if (first) first.focus();
 }
 
 // Notes left completely blank get dropped when you leave the project.
 function dropEmptyNotes() {
   if (!openProject) return;
-  for (const n of notesOf(openProject)) if (NOTE_TEXT.every(k => !(n[k] || '').trim())) touch('Notes', { ...n, deleted: true });
+  for (const n of notesOf(openProject)) if (NOTE_TEXT.every(k => !stripTags(n[k]).trim())) touch('Notes', { ...n, deleted: true });
 }
 
 $('newProject').addEventListener('submit', e => {
@@ -641,7 +824,7 @@ async function sync() {
     lastSynced = Date.now();
     localStorage.setItem('j.lastSynced', lastSynced);
     const a = document.activeElement;
-    if (!a || !(a.matches('.ttl, #addInput') || $('projects').contains(a))) render();
+    if (!a || !(a.matches('.ttl, #addInput, .subadd') || $('projects').contains(a))) render();
   } catch (err) {
     syncError = 'Sync failed: ' + (err.message || err);
   } finally {
